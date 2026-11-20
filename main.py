@@ -1,11 +1,11 @@
 import importlib, os, sys
-from PySide6.QtCore import Qt, QTimer, QUrl
+from disc_drive import DiscDriveDialog
+from PySide6.QtCore import Qt, QUrl
 from PySide6.QtGui import QFont
 from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
 from PySide6.QtMultimediaWidgets import QVideoWidget
 from PySide6.QtWidgets import (
     QApplication,
-    QDialog,
     QFileDialog,
     QFrame,
     QHBoxLayout,
@@ -13,7 +13,6 @@ from PySide6.QtWidgets import (
     QListWidget,
     QMainWindow,
     QMessageBox,
-    QProgressBar,
     QPushButton,
     QScrollArea,
     QStackedWidget,
@@ -21,80 +20,79 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-# Список всех 8 игр: (id, название, описание, цена, модуль, класс, тип_коллбэка)
 GAMES_INFO = [
-    (
-        "jump",
-        "Прыгающая Такса",
-        "Прыгай от лавы, уворачивайся от пил и шипов!",
-        150,
-        "games.dachshund_jump",
-        "DachshundJumpGame",
-        "fin",
-    ),
-    (
-        "drop",
-        "Такса-Дроп",
-        "Открывай карточки такс, продавай или улучшай с шансом.",
-        250,
-        "games.dachshund_drop",
-        "DachshundDropGame",
-        "bal",
-    ),
-    (
-        "mines",
-        "Такса-Сапёр",
-        "Умножай ставку, собирая сосиски на поле 5x5.",
-        100,
-        "games.dachshund_mines",
-        "DachshundMinesGame",
-        "bal",
-    ),
-    (
-        "sniffe",
-        "Sausage Sniffe",
-        "Собери 10 сосисок на поле 16x16 и обойди 15 костей!",
-        200,
-        "games.sausage_sniffe",
-        "SausageSniffeGame",
-        "fin",
-    ),
-    (
-        "dash",
-        "Dachshund Dash",
-        "Беги, прыгай через кактусы и пригибайся от ворон!",
-        120,
-        "games.dachshund_dash",
-        "DachshundDashGame",
-        "fin",
-    ),
-    (
-        "catch",
-        "Ловец Сосисок",
-        "Лови сосиски и шоколадки Милка, уклоняйся от колючек.",
-        130,
-        "games.sausage_catcher",
-        "SausageCatcherGame",
-        "fin",
-    ),
-    (
-        "long",
-        "Длинная Такса",
-        "Ретро-змейка: расти таксу до невероятных размеров!",
-        140,
-        "games.long_dachshund",
-        "LongDachshundGame",
-        "fin",
-    ),
-    (
-        "pong",
-        "Такса-Арканоид",
-        "Отбивай мяч таксой и разбивай неоновые блоки.",
-        160,
-        "games.dachshund_pong",
-        "DachshundPongGame",
-        "fin",
-    ),
+    {
+        "id": "jump",
+        "title": "Прыгающая Такса",
+        "desc": "Прыгай от лавы, уворачивайся от пил и шипов!",
+        "price": 150,
+        "mod": "games.dachshund_jump",
+        "cls": "DachshundJumpGame",
+        "mode": "fin",
+    },
+    {
+        "id": "drop",
+        "title": "Такса-Дроп",
+        "desc": "Открывай карточки такс, продавай или улучшай с шансом.",
+        "price": 250,
+        "mod": "games.dachshund_drop",
+        "cls": "DachshundDropGame",
+        "mode": "bal",
+    },
+    {
+        "id": "mines",
+        "title": "Такса-Сапёр",
+        "desc": "Умножай ставку, собирая сосиски на поле 5x5.",
+        "price": 100,
+        "mod": "games.dachshund_mines",
+        "cls": "DachshundMinesGame",
+        "mode": "bal",
+    },
+    {
+        "id": "sniffe",
+        "title": "Sausage Sniffe",
+        "desc": "Собери 10 сосисок на поле 16x16 и обойди 15 костей!",
+        "price": 200,
+        "mod": "games.sausage_sniffe",
+        "cls": "SausageSniffeGame",
+        "mode": "fin",
+    },
+    {
+        "id": "dash",
+        "title": "Dachshund Dash",
+        "desc": "Беги, прыгай через кактусы и пригибайся от ворон!",
+        "price": 120,
+        "mod": "games.dachshund_dash",
+        "cls": "DachshundDashGame",
+        "mode": "fin",
+    },
+    {
+        "id": "catch",
+        "title": "Ловец Сосисок",
+        "desc": "Лови сосиски и шоколадки Милка, уклоняйся от колючек.",
+        "price": 130,
+        "mod": "games.sausage_catcher",
+        "cls": "SausageCatcherGame",
+        "mode": "fin",
+    },
+    {
+        "id": "long",
+        "title": "Длинная Такса",
+        "desc": "Ретро-змейка: расти таксу до невероятных размеров!",
+        "price": 140,
+        "mod": "games.long_dachshund",
+        "cls": "LongDachshundGame",
+        "mode": "fin",
+    },
+    {
+        "id": "pong",
+        "title": "Такса-Арканоид",
+        "desc": "Отбивай мяч таксой и разбивай неоновые блоки.",
+        "price": 160,
+        "mod": "games.dachshund_pong",
+        "cls": "DachshundPongGame",
+        "mode": "fin",
+    },
 ]
 
 STYLE = """
@@ -113,61 +111,6 @@ QPushButton#ActionBtn:disabled { background: #2E8B57; }
 QListWidget, QScrollArea { background: transparent; border: none; }
 QListWidget { background: #1A1A24; border: 1px solid #2C2C3A; border-radius: 10px; padding: 6px; }
 """
-
-
-class DiscDriveDialog(QDialog):
-
-  def __init__(self, parent, launch_cb):
-    super().__init__(parent)
-    self.setWindowTitle("Привод MeiPlay UMD / DVD")
-    self.setFixedSize(420, 320)
-    self.launch_cb = launch_cb
-    self.sec = 10
-    self.l = QVBoxLayout(self)
-    self.lbl = QLabel(
-        "Вставьте диск с играми в привод...", alignment=Qt.AlignCenter
-    )
-    self.lbl.setFont(QFont("Segoe UI", 13, QFont.Bold))
-    self.pbar = QProgressBar(range=(0, 10), value=0)
-    self.l.addStretch()
-    self.l.addWidget(self.lbl)
-    self.l.addWidget(self.pbar)
-    self.l.addStretch()
-    self.t = QTimer(self)
-    self.t.timeout.connect(self.tick)
-    self.t.start(1000)
-
-  def tick(self):
-    self.sec -= 1
-    self.pbar.setValue(10 - self.sec)
-    if self.sec > 0:
-      self.lbl.setText(f"Чтение диска... Осталось {self.sec} сек.")
-    else:
-      self.t.stop()
-      self.show_menu()
-
-  def show_menu(self):
-    while self.l.count():
-      w = self.l.takeAt(0).widget()
-      if w:
-        w.deleteLater()
-    self.l.addWidget(
-        QLabel(
-            "Диск: «Такса-Сборник 8 в 1»",
-            font=QFont("Segoe UI", 13, QFont.Bold),
-            styleSheet="color:#FF4D94;",
-        )
-    )
-    scroll = QScrollArea()
-    cont = QWidget()
-    cl = QVBoxLayout(cont)
-    for g in GAMES_INFO:
-      btn = QPushButton(f"Запустить: {g[1]}", objectName="ActionBtn")
-      btn.clicked.connect(lambda _, gid=g[0]: (self.accept(), self.launch_cb(gid)))
-      cl.addWidget(btn)
-    scroll.setWidget(cont)
-    scroll.setWidgetResizable(True)
-    self.l.addWidget(scroll)
 class MeiPlayWindow(QMainWindow):
 
   def __init__(self):
@@ -215,9 +158,7 @@ class MeiPlayWindow(QMainWindow):
       sl.addWidget(b)
 
     disc_btn = QPushButton("Вставить диск", objectName="DiscBtn")
-    disc_btn.clicked.connect(
-        lambda: DiscDriveDialog(self, self.launch_game).exec()
-    )
+    disc_btn.clicked.connect(self.open_disc_drive)
     sl.addSpacing(15)
     sl.addWidget(disc_btn)
     sl.addStretch()
@@ -234,6 +175,10 @@ class MeiPlayWindow(QMainWindow):
     bl.addWidget(self.pages)
     ml.addLayout(bl)
     self.switch_tab(0)
+
+  def open_disc_drive(self):
+    tuples_list = [(g["id"], g["title"]) for g in GAMES_INFO]
+    DiscDriveDialog(self, self.launch_game, self.owned, tuples_list).exec()
 
   def change_bal(self, d):
     self.balance += d
@@ -254,9 +199,9 @@ class MeiPlayWindow(QMainWindow):
       card = QFrame(objectName="GameCard")
       cl = QHBoxLayout(card)
       il = QVBoxLayout()
-      il.addWidget(QLabel(g[1], font=QFont("Segoe UI", 14, QFont.Bold)))
-      il.addWidget(QLabel(g[2], styleSheet="color:#B0B0C8;"))
-      btn = QPushButton(f"Купить за {g[3]}", objectName="ActionBtn")
+      il.addWidget(QLabel(g["title"], font=QFont("Segoe UI", 14, QFont.Bold)))
+      il.addWidget(QLabel(g["desc"], styleSheet="color:#B0B0C8;"))
+      btn = QPushButton(f"Купить за {g['price']}", objectName="ActionBtn")
       btn.clicked.connect(lambda _, game=g, b=btn: self.buy_game(game, b))
       cl.addLayout(il)
       cl.addStretch()
@@ -267,9 +212,9 @@ class MeiPlayWindow(QMainWindow):
     return scroll
 
   def buy_game(self, g, btn):
-    if self.balance >= g[3]:
-      self.change_bal(-g[3])
-      self.owned.add(g[0])
+    if self.balance >= g["price"]:
+      self.change_bal(-g["price"])
+      self.owned.add(g["id"])
       btn.setText("Куплено")
       btn.setEnabled(False)
       self.refresh_games()
@@ -293,25 +238,25 @@ class MeiPlayWindow(QMainWindow):
       if w:
         w.deleteLater()
     for g in GAMES_INFO:
-      if g[0] in self.owned:
+      if g["id"] in self.owned:
         card = QFrame(objectName="GameCard")
         cl = QHBoxLayout(card)
-        cl.addWidget(QLabel(g[1], font=QFont("Segoe UI", 14, QFont.Bold)))
+        cl.addWidget(QLabel(g["title"], font=QFont("Segoe UI", 14, QFont.Bold)))
         btn = QPushButton("Играть", objectName="ActionBtn")
-        btn.clicked.connect(lambda _, gid=g[0]: self.launch_game(gid))
+        btn.clicked.connect(lambda _, gid=g["id"]: self.launch_game(gid))
         cl.addStretch()
         cl.addWidget(btn)
         self.gl.addWidget(card)
     self.gl.addStretch()
 
   def launch_game(self, gid):
-    g = next((x for x in GAMES_INFO if x[0] == gid), None)
+    g = next((x for x in GAMES_INFO if x["id"] == gid), None)
     if not g:
       return
     try:
-      mod = importlib.import_module(g[4])
-      cls = getattr(mod, g[5])
-      if g[6] == "fin":
+      mod = importlib.import_module(g["mod"])
+      cls = getattr(mod, g["cls"])
+      if g["mode"] == "fin":
         cls(self, on_finish=self.change_bal).exec()
       else:
         cls(
@@ -321,7 +266,7 @@ class MeiPlayWindow(QMainWindow):
         ).exec()
     except Exception as e:
       QMessageBox.critical(
-          self, "Ошибка запуска", f"Не удалось открыть {g[1]}:\n{e}"
+          self, "Ошибка запуска", f"Не удалось открыть {g['title']}:\n{e}"
       )
 
   def page_music(self):
