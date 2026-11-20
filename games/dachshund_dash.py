@@ -24,8 +24,10 @@ class DachshundDashGame(QDialog):
     self.score = 0
     self.speed = 6.5
     self.alive = True
-    # [x, w, h, is_bird]
-    self.obs = [[650, 24, 38, False], [950, 34, 24, True]]
+    self.obs = [
+        {"x": 650.0, "w": 24, "h": 38, "bird": False},
+        {"x": 950.0, "w": 34, "h": 24, "bird": True},
+    ]
 
   def keyPressEvent(self, e):
     if not self.alive and e.key() == Qt.Key_R:
@@ -49,25 +51,24 @@ class DachshundDashGame(QDialog):
     self.vy += 0.65
     self.y = min(220.0, self.y + self.vy)
 
-    # Хитбокс таксы (длинная, но низкая при приседании)
     dh = 12 if self.duck else 22
     dy = self.y + (22 - dh)
     dx, dw = 60, 52
 
     for o in self.obs:
-      o -= self.speed
-      if o < -50:
-        o = 660 + random.randint(0, 220)
+      o["x"] -= self.speed
+      if o["x"] < -50:
+        o["x"] = 660.0 + random.randint(0, 220)
         is_bird = random.random() < 0.35 and self.score > 200
-        o = is_bird
-        o = 34 if is_bird else random.randint(20, 32)
-        o = 22 if is_bird else random.randint(28, 44)
+        o["bird"] = is_bird
+        o["w"] = 34 if is_bird else random.randint(20, 32)
+        o["h"] = 22 if is_bird else random.randint(28, 44)
 
-      oy = 192 if o else (242 - o)
+      oy = 192 if o["bird"] else (242 - o["h"])
       if (
-          dx < o + o - 4
-          and dx + dw > o + 4
-          and dy < oy + o - 4
+          dx < o["x"] + o["w"] - 4
+          and dx + dw > o["x"] + 4
+          and dy < oy + o["h"] - 4
           and dy + dh > oy + 4
       ):
         self.alive = False
@@ -80,11 +81,9 @@ class DachshundDashGame(QDialog):
     qp = QPainter(self)
     qp.fillRect(self.rect(), QColor("#14141E"))
 
-    # Земля
     qp.setPen(QColor("#FF4D94"))
     qp.drawLine(0, 244, 640, 244)
 
-    # Такса
     dh = 12 if self.duck else 22
     dy = int(self.y + (22 - dh))
     qp.setBrush(QColor("#8B4513"))
@@ -92,11 +91,10 @@ class DachshundDashGame(QDialog):
     qp.drawRoundedRect(60, dy, 52, dh, 6, 6)
     qp.drawEllipse(100, dy - 6, 18, 15)
 
-    # Препятствия
-    for ox, ow, oh, is_bird in self.obs:
-      oy = 192 if is_bird else (242 - oh)
-      qp.setBrush(QColor("#FFAA00") if is_bird else QColor("#FF3B5C"))
-      qp.drawRoundedRect(int(ox), int(oy), ow, oh, 5, 5)
+    for o in self.obs:
+      oy = 192 if o["bird"] else (242 - o["h"])
+      qp.setBrush(QColor("#FFAA00") if o["bird"] else QColor("#FF3B5C"))
+      qp.drawRoundedRect(int(o["x"]), int(oy), o["w"], o["h"], 5, 5)
 
     qp.setPen(QColor("#FFFFFF"))
     qp.setFont(QFont("Segoe UI", 13, QFont.Bold))
