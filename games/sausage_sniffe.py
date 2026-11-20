@@ -160,6 +160,8 @@ class SausageSniffeGame(QDialog):
     restart_btn.clicked.connect(self.canvas.reset)
 
   def update_hud(self, dist=None, lost=False):
+    if not hasattr(self, "canvas"):
+      return
     self.info_lbl.setText(
         f"Сосиски: {len(self.canvas.found)}/{SAUSAGES_GOAL} | Костей:"
         f" {BONES_COUNT}"
