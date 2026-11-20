@@ -1,7 +1,7 @@
 import math, random
-from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QBrush, QColor, QFont, QPainter, QPolygonF
-from PySide6.QtWidgets import QDialog, QMessageBox
+from PySide6.QtCore import QPointF, Qt, QTimer
+from PySide6.QtGui import QColor, QFont, QPainter
+from PySide6.QtWidgets import QDialog
 
 
 class DachshundJumpGame(QDialog):
@@ -19,18 +19,18 @@ class DachshundJumpGame(QDialog):
     self.timer.start(16)
 
   def reset_game(self):
-    self.px, self.py = 200.0, 500.0
-    self.vx, self.vy = 0.0, -11.0
-    self.score, self.lava_y, self.angle = 0, 680.0, 0
+    self.px, self.py = 200.0, 480.0
+    self.vx, self.vy = 0.0, -12.0
+    self.score, self.lava_y = 0, 680.0
     self.alive = True
-    # [x, y, w, type: 0=обычная, 1=с шипами]
-    self.plats = [[160, 560, 120, 0]]
-    for i in range(1, 12):
+    # Стартовая платформа прямо под таксой + 10 верхних: [x, y, w, type]
+    self.plats = [[180, 520, 100, 0]]
+    for i in range(1, 11):
       self.plats.append(
-          [random.randint(20, 320), 560 - i * 65, 95, 1 if i % 4 == 0 else 0]
+          [random.randint(20, 320), 520 - i * 62, 95, 1 if i % 4 == 0 else 0]
       )
-    # [x, y, vx]
-    self.saws = [[100, 260, 2.5], [300, 60, -3.0]]
+    # Пилы: [x, y, vx]
+    self.saws = [[100.0, 260.0, 2.5], [300.0, 60.0, -3.0]]
 
   def keyPressEvent(self, e):
     self.keys.add(e.key())
@@ -43,9 +43,7 @@ class DachshundJumpGame(QDialog):
   def update_game(self):
     if not self.alive:
       return
-    self.angle = (self.angle + 12) % 360
 
-    # Движение влево-вправо
     if Qt.Key_Left in self.keys or Qt.Key_A in self.keys:
       self.vx = -6.5
     elif Qt.Key_Right in self.keys or Qt.Key_D in self.keys:
@@ -57,16 +55,15 @@ class DachshundJumpGame(QDialog):
     self.vy += 0.42
     self.py += self.vy
 
-    # Прыжки от платформ и проверка шипов
+    # Отскок от платформ и проверка шипов
     if self.vy > 0:
       for p in self.plats:
-        if p[0] - 35 < self.px < p[0] + p[2] and p[1] - 22 <= self.py <= p[1] + 8:
-          if p[3] == 1 and p[0] + 25 < self.px + 20 < p[0] + p[2] - 25:
+        if p[0] - 35 < self.px < p[0] + p[2] and p[1] - 20 <= self.py <= p[1] + 10:
+          if p[3] == 1 and p[0] + 24 < self.px + 22 < p[0] + p[2] - 24:
             self.game_over()
             return
-          self.vy = -12.2
-
-    # Камера поднимается вверх
+          self.vy = -12.5
+    # Подъём камеры
     if self.py < 260:
       diff = 260 - self.py
       self.py = 260
@@ -77,11 +74,11 @@ class DachshundJumpGame(QDialog):
       for s in self.saws:
         s[1] += diff
 
-    # Генерация новых платформ и пил
+    # Новые платформы и пилы
     for p in self.plats:
       if p[1] > 670:
         p[0] = random.randint(20, 340)
-        p[1] = min(pl[1] for pl in self.plats) - random.randint(58, 72)
+        p[1] = min(pl[1] for pl in self.plats) - random.randint(58, 70)
         p[3] = 1 if random.random() < 0.25 else 0
 
     for s in self.saws:
@@ -91,22 +88,20 @@ class DachshundJumpGame(QDialog):
       if s[1] > 690:
         s[1] = -random.randint(80, 220)
         s[0] = random.randint(40, 420)
-      if math.hypot(self.px + 22 - s[0], self.py + 10 - s[1]) < 26:
+      if math.hypot(self.px + 22 - s[0], self.py + 8 - s[1]) < 26:
         self.game_over()
         return
 
-    # Лава поднимается
     self.lava_y -= 1.15 + min(self.score / 5000, 1.5)
-    if self.py + 20 >= self.lava_y or self.py > 660:
+    if self.py + 18 >= self.lava_y or self.py > 660:
       self.game_over()
 
     self.update()
 
   def game_over(self):
     self.alive = False
-    coins = max(5, self.score // 25)
     if self.on_finish:
-      self.on_finish(coins)
+      self.on_finish(max(5, self.score // 25))
     self.update()
 
   def paintEvent(self, e):
@@ -133,7 +128,7 @@ class DachshundJumpGame(QDialog):
       qp.setBrush(QColor("#FF4D94"))
       qp.drawEllipse(int(sx - 5), int(sy - 5), 10, 10)
 
-    # Такса (длинное тело, голова, ухо, лапки)
+    # Такса
     qp.setBrush(QColor("#8B4513"))
     qp.drawRoundedRect(int(self.px), int(self.py), 44, 16, 7, 7)
     qp.drawEllipse(int(self.px + 32), int(self.py - 8), 18, 16)
@@ -144,7 +139,6 @@ class DachshundJumpGame(QDialog):
     qp.setBrush(QColor(255, 65, 20, 210))
     qp.drawRect(0, int(self.lava_y), 460, 700)
 
-    # Счёт
     qp.setPen(QColor("#FFFFFF"))
     qp.setFont(QFont("Segoe UI", 14, QFont.Bold))
     qp.drawText(15, 30, f"Высота: {self.score}")
@@ -156,5 +150,6 @@ class DachshundJumpGame(QDialog):
       qp.drawText(120, 290, "ТАКСА ПОПАЛАСЬ!")
       qp.setPen(QColor("#FFFFFF"))
       qp.setFont(QFont("Segoe UI", 13))
-      qp.drawText(115, 330, f"Награда: +{max(5, self.score // 25)} монет")
-      qp.drawText(115, 360, "Нажми R чтобы сыграть снова")
+      qp.drawText(
+          115, 330, f"Награда: +{max(5, self.score // 25)} монет (R - заново)"
+      )
