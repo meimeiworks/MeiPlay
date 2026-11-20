@@ -1,10 +1,11 @@
-import os, sys
-from PySide6.QtCore import Qt, QUrl
+import importlib, os, sys
+from PySide6.QtCore import Qt, QTimer, QUrl
 from PySide6.QtGui import QFont
 from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
 from PySide6.QtMultimediaWidgets import QVideoWidget
 from PySide6.QtWidgets import (
     QApplication,
+    QDialog,
     QFileDialog,
     QFrame,
     QHBoxLayout,
@@ -12,36 +13,169 @@ from PySide6.QtWidgets import (
     QListWidget,
     QMainWindow,
     QMessageBox,
+    QProgressBar,
     QPushButton,
+    QScrollArea,
     QStackedWidget,
     QVBoxLayout,
     QWidget,
 )
 
+# Список всех 8 игр: (id, название, описание, цена, модуль, класс, тип_коллбэка)
+GAMES_INFO = [
+    (
+        "jump",
+        "Прыгающая Такса",
+        "Прыгай от лавы, уворачивайся от пил и шипов!",
+        150,
+        "games.dachshund_jump",
+        "DachshundJumpGame",
+        "fin",
+    ),
+    (
+        "drop",
+        "Такса-Дроп",
+        "Открывай карточки такс, продавай или улучшай с шансом.",
+        250,
+        "games.dachshund_drop",
+        "DachshundDropGame",
+        "bal",
+    ),
+    (
+        "mines",
+        "Такса-Сапёр",
+        "Умножай ставку, собирая сосиски на поле 5x5.",
+        100,
+        "games.dachshund_mines",
+        "DachshundMinesGame",
+        "bal",
+    ),
+    (
+        "sniffe",
+        "Sausage Sniffe",
+        "Собери 10 сосисок на поле 16x16 и обойди 15 костей!",
+        200,
+        "games.sausage_sniffe",
+        "SausageSniffeGame",
+        "fin",
+    ),
+    (
+        "dash",
+        "Dachshund Dash",
+        "Беги, прыгай через кактусы и пригибайся от ворон!",
+        120,
+        "games.dachshund_dash",
+        "DachshundDashGame",
+        "fin",
+    ),
+    (
+        "catch",
+        "Ловец Сосисок",
+        "Лови сосиски и шоколадки Милка, уклоняйся от колючек.",
+        130,
+        "games.sausage_catcher",
+        "SausageCatcherGame",
+        "fin",
+    ),
+    (
+        "long",
+        "Длинная Такса",
+        "Ретро-змейка: расти таксу до невероятных размеров!",
+        140,
+        "games.long_dachshund",
+        "LongDachshundGame",
+        "fin",
+    ),
+    (
+        "pong",
+        "Такса-Арканоид",
+        "Отбивай мяч таксой и разбивай неоновые блоки.",
+        160,
+        "games.dachshund_pong",
+        "DachshundPongGame",
+        "fin",
+    ),
+]
+
 STYLE = """
-QMainWindow { background-color: #121218; }
-QWidget { color: #F0F0F5; font-family: 'Segoe UI', Arial; }
+QMainWindow, QDialog { background-color: #121218; color: #F0F0F5; font-family: 'Segoe UI', Arial; }
 QFrame#Sidebar { background-color: #1A1A24; border-right: 1px solid #2C2C3A; }
 QFrame#TopBar { background-color: #16161E; border-bottom: 1px solid #2C2C3A; }
-QPushButton#NavBtn { background: transparent; border: none; border-radius: 10px; padding: 14px; text-align: left; font-size: 15px; font-weight: bold; color: #A0A0B8; }
+QPushButton#NavBtn { background: transparent; border: none; border-radius: 10px; padding: 12px; text-align: left; font-size: 14px; font-weight: bold; color: #A0A0B8; }
 QPushButton#NavBtn:hover { background: #252535; color: #FFF; }
 QPushButton#NavBtn[active="true"] { background: #FF4D94; color: #FFF; }
-QFrame#GameCard { background: #1E1E2A; border: 1px solid #323246; border-radius: 14px; padding: 16px; }
-QPushButton#ActionBtn { background: #FF4D94; color: white; border: none; border-radius: 8px; padding: 10px 18px; font-weight: bold; }
+QPushButton#DiscBtn { background: #252538; border: 1px solid #FF4D94; border-radius: 10px; padding: 12px; text-align: left; font-size: 14px; font-weight: bold; color: #FF85B8; }
+QPushButton#DiscBtn:hover { background: #FF4D94; color: #FFF; }
+QFrame#GameCard { background: #1E1E2A; border: 1px solid #323246; border-radius: 12px; padding: 12px; }
+QPushButton#ActionBtn { background: #FF4D94; color: white; border: none; border-radius: 8px; padding: 8px 14px; font-weight: bold; }
 QPushButton#ActionBtn:hover { background: #FF6BA6; }
 QPushButton#ActionBtn:disabled { background: #2E8B57; }
+QListWidget, QScrollArea { background: transparent; border: none; }
 QListWidget { background: #1A1A24; border: 1px solid #2C2C3A; border-radius: 10px; padding: 6px; }
 """
 
 
+class DiscDriveDialog(QDialog):
+
+  def __init__(self, parent, launch_cb):
+    super().__init__(parent)
+    self.setWindowTitle("Привод MeiPlay UMD / DVD")
+    self.setFixedSize(420, 320)
+    self.launch_cb = launch_cb
+    self.sec = 10
+    self.l = QVBoxLayout(self)
+    self.lbl = QLabel(
+        "Вставьте диск с играми в привод...", alignment=Qt.AlignCenter
+    )
+    self.lbl.setFont(QFont("Segoe UI", 13, QFont.Bold))
+    self.pbar = QProgressBar(range=(0, 10), value=0)
+    self.l.addStretch()
+    self.l.addWidget(self.lbl)
+    self.l.addWidget(self.pbar)
+    self.l.addStretch()
+    self.t = QTimer(self)
+    self.t.timeout.connect(self.tick)
+    self.t.start(1000)
+
+  def tick(self):
+    self.sec -= 1
+    self.pbar.setValue(10 - self.sec)
+    if self.sec > 0:
+      self.lbl.setText(f"Чтение диска... Осталось {self.sec} сек.")
+    else:
+      self.t.stop()
+      self.show_menu()
+
+  def show_menu(self):
+    while self.l.count():
+      w = self.l.takeAt(0).widget()
+      if w:
+        w.deleteLater()
+    self.l.addWidget(
+        QLabel(
+            "Диск: «Такса-Сборник 8 в 1»",
+            font=QFont("Segoe UI", 13, QFont.Bold),
+            styleSheet="color:#FF4D94;",
+        )
+    )
+    scroll = QScrollArea()
+    cont = QWidget()
+    cl = QVBoxLayout(cont)
+    for g in GAMES_INFO:
+      btn = QPushButton(f"Запустить: {g[1]}", objectName="ActionBtn")
+      btn.clicked.connect(lambda _, gid=g[0]: (self.accept(), self.launch_cb(gid)))
+      cl.addWidget(btn)
+    scroll.setWidget(cont)
+    scroll.setWidgetResizable(True)
+    self.l.addWidget(scroll)
 class MeiPlayWindow(QMainWindow):
 
   def __init__(self):
     super().__init__()
-    self.setWindowTitle("MeiPlay OS")
+    self.setWindowTitle("MeiPlay OS - PC Edition")
     self.resize(1050, 650)
     self.setStyleSheet(STYLE)
-    self.balance, self.owned_games = 500, set()
+    self.balance, self.owned = 600, set()
 
     cw = QWidget()
     self.setCentralWidget(cw)
@@ -53,7 +187,7 @@ class MeiPlayWindow(QMainWindow):
     tl = QHBoxLayout(top)
     tl.addWidget(
         QLabel(
-            "MeiPlay",
+            "MeiPlay OS",
             font=QFont("Segoe UI", 16, QFont.Bold),
             styleSheet="color:#FF4D94;",
         )
@@ -61,7 +195,10 @@ class MeiPlayWindow(QMainWindow):
     tl.addStretch()
     self.bal_lbl = QLabel(
         f"Баланс: {self.balance} монет",
-        styleSheet="background:#252535; padding:6px 14px; border-radius:12px;",
+        styleSheet=(
+            "background:#252535; padding:6px 14px; border-radius:12px;"
+            " font-weight:bold;"
+        ),
     )
     tl.addWidget(self.bal_lbl)
     ml.addWidget(top)
@@ -76,6 +213,13 @@ class MeiPlayWindow(QMainWindow):
     for i, b in enumerate(self.nav_btns):
       b.clicked.connect(lambda _, idx=i: self.switch_tab(idx))
       sl.addWidget(b)
+
+    disc_btn = QPushButton("Вставить диск", objectName="DiscBtn")
+    disc_btn.clicked.connect(
+        lambda: DiscDriveDialog(self, self.launch_game).exec()
+    )
+    sl.addSpacing(15)
+    sl.addWidget(disc_btn)
     sl.addStretch()
     bl.addWidget(side)
 
@@ -91,6 +235,10 @@ class MeiPlayWindow(QMainWindow):
     ml.addLayout(bl)
     self.switch_tab(0)
 
+  def change_bal(self, d):
+    self.balance += d
+    self.bal_lbl.setText(f"Баланс: {self.balance} монет")
+
   def switch_tab(self, idx):
     self.pages.setCurrentIndex(idx)
     for i, b in enumerate(self.nav_btns):
@@ -99,74 +247,82 @@ class MeiPlayWindow(QMainWindow):
       b.style().polish(b)
 
   def page_shop(self):
-    p = QWidget()
-    l = QVBoxLayout(p)
-    self.catalog = [
-        {
-            "id": "dachshund_jump",
-            "title": "Прыгающая Такса",
-            "desc": "Прыгай от лавы, уворачивайся от пил и шипов!",
-            "price": 150,
-        },
-        {
-            "id": "dachshund_drop",
-            "title": "Такса-Дроп",
-            "desc": "Открывай карточки такс, продавай или улучшай с шансом.",
-            "price": 250,
-        },
-    ]
-    for g in self.catalog:
+    scroll = QScrollArea(widgetResizable=True)
+    cont = QWidget()
+    l = QVBoxLayout(cont)
+    for g in GAMES_INFO:
       card = QFrame(objectName="GameCard")
       cl = QHBoxLayout(card)
       il = QVBoxLayout()
-      il.addWidget(QLabel(g["title"], font=QFont("Segoe UI", 15, QFont.Bold)))
-      il.addWidget(QLabel(g["desc"], styleSheet="color:#B0B0C8;"))
-      btn = QPushButton(f"Купить за {g['price']}", objectName="ActionBtn")
+      il.addWidget(QLabel(g[1], font=QFont("Segoe UI", 14, QFont.Bold)))
+      il.addWidget(QLabel(g[2], styleSheet="color:#B0B0C8;"))
+      btn = QPushButton(f"Купить за {g[3]}", objectName="ActionBtn")
       btn.clicked.connect(lambda _, game=g, b=btn: self.buy_game(game, b))
       cl.addLayout(il)
       cl.addStretch()
       cl.addWidget(btn)
       l.addWidget(card)
     l.addStretch()
-    return p
+    scroll.setWidget(cont)
+    return scroll
 
   def buy_game(self, g, btn):
-    if self.balance >= g["price"]:
-      self.balance -= g["price"]
-      self.owned_games.add(g["id"])
-      self.bal_lbl.setText(f"Баланс: {self.balance} монет")
-      btn.setText("В библиотеке")
+    if self.balance >= g[3]:
+      self.change_bal(-g[3])
+      self.owned.add(g[0])
+      btn.setText("Куплено")
       btn.setEnabled(False)
       self.refresh_games()
     else:
-      QMessageBox.warning(self, "Ошибка", "Недостаточно монет!")
+      QMessageBox.warning(
+          self, "Мало монет", "Заработай больше монет в играх!"
+      )
 
   def page_games(self):
-    p = QWidget()
-    self.gl = QVBoxLayout(p)
-    self.gl.addWidget(QLabel("Пока пусто! Купи первую игру в Магазинчике."))
+    scroll = QScrollArea(widgetResizable=True)
+    cont = QWidget()
+    self.gl = QVBoxLayout(cont)
+    self.gl.addWidget(QLabel("Купи игры в магазине или вставь диск с играми!"))
     self.gl.addStretch()
-    return p
+    scroll.setWidget(cont)
+    return scroll
 
   def refresh_games(self):
     while self.gl.count():
       w = self.gl.takeAt(0).widget()
       if w:
         w.deleteLater()
-    for g in self.catalog:
-      if g["id"] in self.owned_games:
+    for g in GAMES_INFO:
+      if g[0] in self.owned:
         card = QFrame(objectName="GameCard")
         cl = QHBoxLayout(card)
-        cl.addWidget(QLabel(g["title"], font=QFont("Segoe UI", 14, QFont.Bold)))
+        cl.addWidget(QLabel(g[1], font=QFont("Segoe UI", 14, QFont.Bold)))
         btn = QPushButton("Играть", objectName="ActionBtn")
-        btn.clicked.connect(lambda _, gid=g["id"]: self.launch_game(gid))
+        btn.clicked.connect(lambda _, gid=g[0]: self.launch_game(gid))
         cl.addStretch()
         cl.addWidget(btn)
         self.gl.addWidget(card)
     self.gl.addStretch()
 
   def launch_game(self, gid):
-    QMessageBox.information(self, "Запуск", f"Запускаем {gid}!")
+    g = next((x for x in GAMES_INFO if x[0] == gid), None)
+    if not g:
+      return
+    try:
+      mod = importlib.import_module(g[4])
+      cls = getattr(mod, g[5])
+      if g[6] == "fin":
+        cls(self, on_finish=self.change_bal).exec()
+      else:
+        cls(
+            self,
+            get_balance=lambda: self.balance,
+            change_balance=self.change_bal,
+        ).exec()
+    except Exception as e:
+      QMessageBox.critical(
+          self, "Ошибка запуска", f"Не удалось открыть {g[1]}:\n{e}"
+      )
 
   def page_music(self):
     p = QWidget()
@@ -191,7 +347,7 @@ class MeiPlayWindow(QMainWindow):
     return p
 
   def load_music(self):
-    d = QFileDialog.getExistingDirectory(self, "Папка")
+    d = QFileDialog.getExistingDirectory(self, "Папка с музыкой")
     if d:
       self.tlist.clear()
       self.mfiles = [
